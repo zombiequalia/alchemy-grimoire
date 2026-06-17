@@ -345,6 +345,11 @@
   .pot-make{margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--line-soft);font-family:'IBM Plex Mono',monospace;font-size:12px}
   .pot-meta{display:flex;align-items:center;gap:10px;margin-bottom:10px}
   .pot-fx{font-size:13px;color:var(--ink-dim);line-height:1.4}
+  .glance-label{margin-left:8px;font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--gold);background:var(--panel2);border:1px solid var(--line);border-radius:4px;padding:1px 6px;white-space:nowrap}
+  .pot-label-edit{display:flex;flex-direction:column;gap:3px;margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--line-soft)}
+  .pot-label-edit label{font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-faint)}
+  .pot-label-edit input{background:var(--bg);border:1px solid var(--line);border-radius:4px;color:var(--gold);font-family:'IBM Plex Mono',monospace;font-size:13px;padding:6px 8px;width:140px}
+  .pot-label-edit input:focus{outline:none;border-color:var(--gold-dim)}
 
   /* order cart */
   .order-add{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
@@ -640,6 +645,47 @@ const RECIPES = [
   {n:"Fire Salts",t:"3",cat:"craft",sells:null,fx:"Crafting reagent",ing:[["petty soul gem",1],["salt pile",2],["ruby",2]]},
   {n:"Skooma",t:"3",cat:"special",sells:null,fx:"−50% health, stam regen +200% 180s, paralyze 1s",ing:[["nightshade",10],["moon sugar",5]]},
 ];
+
+// Short at-a-glance labels for the potion row (pre-seeded, editable per potion).
+const LABELS = {
+  "potion of minor healing":"30 HP",
+  "potion of healing":"50 HP",
+  "potion of plentiful healing":"75 HP",
+  "potion of cure disease":"cure",
+  "potion of minor magicka":"25 MP",
+  "potion of magicka":"50 MP",
+  "potion of plentiful magicka":"75 MP",
+  "potion of extra magicka":"+20 MP",
+  "draught of extra magicka":"+40 MP",
+  "potion of lasting potency":"MP regen",
+  "draught of lasting potency":"MP regen+",
+  "potion of destruction":"destr +20%",
+  "draught of destruction":"destr +30%",
+  "potion of the healer":"resto +20%",
+  "draught of the healer":"resto +30%",
+  "potion of minor stamina":"25 SP",
+  "potion of stamina":"50 SP",
+  "potion of plentiful stamina":"75 SP",
+  "potion of vigor":"SP regen",
+  "draught of vigor":"SP regen+",
+  "potion of enhanced stamina":"+20 SP",
+  "draught of enhanced stamina":"+40 SP",
+  "feather foot tonic":"+50 SP",
+  "potion of the berserker":"2H +20%",
+  "draught of the berserker":"2H +30%",
+  "potion of the warrior":"1H +20%",
+  "draught of the warrior":"1H +30%",
+  "potion of resist magic":"magic res",
+  "draught of resist magic":"magic res+",
+  "wine":"wine",
+  "ale":"ale",
+  "nord mead":"mead",
+  "void salts":"reagent",
+  "frost salts":"reagent",
+  "fire salts":"reagent",
+  "skooma":"skooma"
+};
+function defaultLabel(name){ return LABELS[name.toLowerCase()] || ''; }
 
 const DEFAULT_INGREDIENTS = [
   {name:"thistle branch",qty:147,src:"Forage",prio:false,buy:0,labor:0,sell:0,note:""},
@@ -1048,7 +1094,8 @@ function renderPotions(){
     const key = name;
     const expanded = !!expandedPotions[key];
     const caret = `<span style="color:var(--ink-faint);font-size:10px;margin-right:4px">${expanded?'▾':'▸'}</span>`;
-    const tag = (r && r.sells==='yes') ? '<span class="tag tag-sells">sells</span>' : '';
+    const labelText = (p && p.label!==undefined && p.label!=='') ? p.label : defaultLabel(name);
+    const labelBadge = labelText ? `<span class="glance-label">${esc(labelText)}</span>` : '';
     const b = r ? canMake(r) : 0;
     const heldQty = p && p.qty ? p.qty : 0;
     const stockStepper = `<div class="qty qty-sm">
@@ -1064,7 +1111,7 @@ function renderPotions(){
       sellCell = `<span style="color:var(--ink-faint);font-size:11px">—</span>`;
     }
     const main = `<tr>
-      <td><span style="cursor:pointer;display:inline-flex;align-items:center" onclick="togglePotion('${esc(key).replace(/'/g,"\\'")}')">${caret}<span class="name">${esc(name)}</span>${tag}</span></td>
+      <td><span style="cursor:pointer;display:inline-flex;align-items:center" onclick="togglePotion('${esc(key).replace(/'/g,"\\'")}')">${caret}<span class="name">${esc(name)}</span>${labelBadge}</span></td>
       <td>${stockStepper}</td>
       <td style="text-align:right">${sellCell}</td>
     </tr>`;
@@ -1078,6 +1125,8 @@ function renderPotions(){
       if(r){
         inner += `<div class="pot-meta">${tierTxt}<span class="pot-fx">${fxTxt}</span></div>`;
       }
+      // editable glance label
+      inner += `<div class="pot-label-edit"><label>Quick label (shown on row)</label><input class="edit-note" value="${esc(labelText)}" onchange="setPotionLabel('${esc(key).replace(/'/g,"\\'")}',this.value)" placeholder="e.g. 30 HP" onclick="event.stopPropagation()"></div>`;
       // craftable batches
       if(r){
         const makeBadge = b>=1 ? `<span class="can">✓ can make ${b}</span>` : `<span class="cant">short on materials</span>`;
@@ -1132,6 +1181,7 @@ function potionEntry(name){
   return p;
 }
 function setPotionQty(name,v){ const p=potionEntry(name); p.qty=Math.max(0,parseInt(v)||0); save(); renderPotions(); renderOrder(); }
+function setPotionLabel(name,v){ const p=potionEntry(name); p.label=v; save(); renderPotions(); }
 function bumpPotion(name,d){ const p=potionEntry(name); p.qty=Math.max(0,(p.qty||0)+d); save(); renderPotions(); renderOrder(); }
 function setPrice(i,v){ prices[i].price=Math.max(0,parseInt(v)||0); save(); renderPotions(); renderOrder(); }
 function setPotionName(i,v){ prices[i].item=v.trim()||prices[i].item; save(); renderPotions(); }
