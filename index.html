@@ -343,6 +343,8 @@
   .qty-sm button{width:20px;height:24px;font-size:13px}
   .qty-sm input{width:34px;height:24px;font-size:12px}
   .pot-make{margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--line-soft);font-family:'IBM Plex Mono',monospace;font-size:12px}
+  .pot-meta{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+  .pot-fx{font-size:13px;color:var(--ink-dim);line-height:1.4}
 
   /* order cart */
   .order-add{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
@@ -495,10 +497,8 @@
       <table>
         <thead><tr>
           <th class="nosort">Potion</th>
-          <th class="nosort" style="width:34px">Tier</th>
-          <th class="nosort">Effect</th>
-          <th class="nosort" style="width:96px">Stock</th>
-          <th class="nosort" style="width:64px;text-align:right">Sell</th>
+          <th class="nosort" style="width:104px">Stock</th>
+          <th class="nosort" style="width:66px;text-align:right">Sell</th>
         </tr></thead>
         <tbody id="potBody"></tbody>
       </table>
@@ -1041,7 +1041,7 @@ function renderPotions(){
   if(chips.sells) rows = rows.filter(({r,p})=> (r && r.sells==='yes') || (p && p.price>0 && !r));
 
   const body=document.getElementById('potBody');
-  if(rows.length===0){ body.innerHTML='<tr><td colspan="5" class="empty">No potions match.</td></tr>'; return; }
+  if(rows.length===0){ body.innerHTML='<tr><td colspan="3" class="empty">No potions match.</td></tr>'; return; }
 
   body.innerHTML = rows.map(({r,p,pIdx})=>{
     const name = r ? r.n : p.item;
@@ -1049,8 +1049,6 @@ function renderPotions(){
     const expanded = !!expandedPotions[key];
     const caret = `<span style="color:var(--ink-faint);font-size:10px;margin-right:4px">${expanded?'▾':'▸'}</span>`;
     const tag = (r && r.sells==='yes') ? '<span class="tag tag-sells">sells</span>' : '';
-    const tier = r ? `<span class="tier tier-${r.t}">${r.t==='M'?'M':'T'+r.t}</span>` : '<span style="color:var(--ink-faint)">—</span>';
-    const fx = r ? esc(r.fx) : '<span style="color:var(--ink-faint)">—</span>';
     const b = r ? canMake(r) : 0;
     const heldQty = p && p.qty ? p.qty : 0;
     const stockStepper = `<div class="qty qty-sm">
@@ -1067,8 +1065,6 @@ function renderPotions(){
     }
     const main = `<tr>
       <td><span style="cursor:pointer;display:inline-flex;align-items:center" onclick="togglePotion('${esc(key).replace(/'/g,"\\'")}')">${caret}<span class="name">${esc(name)}</span>${tag}</span></td>
-      <td>${tier}</td>
-      <td style="font-size:12px;color:var(--ink-dim);line-height:1.35">${fx}</td>
       <td>${stockStepper}</td>
       <td style="text-align:right">${sellCell}</td>
     </tr>`;
@@ -1076,7 +1072,13 @@ function renderPotions(){
     let detail='';
     if(expanded){
       let inner='';
-      // craftable batches (moved here from main row)
+      // tier + effect (moved here from main row)
+      const tierTxt = r ? `<span class="tier tier-${r.t}">${r.t==='M'?'M':'T'+r.t}</span>` : '';
+      const fxTxt = r ? esc(r.fx) : '';
+      if(r){
+        inner += `<div class="pot-meta">${tierTxt}<span class="pot-fx">${fxTxt}</span></div>`;
+      }
+      // craftable batches
       if(r){
         const makeBadge = b>=1 ? `<span class="can">✓ can make ${b}</span>` : `<span class="cant">short on materials</span>`;
         inner += `<div class="pot-make">${makeBadge}</div>`;
@@ -1118,7 +1120,7 @@ function renderPotions(){
       } else {
         inner += `<div class="bd-foot">No sell price set. Add one on the row, or it stays a reference-only recipe (e.g. crafting reagents).</div>`;
       }
-      detail = `<tr class="detail-row"><td colspan="5"><div class="breakdown">${inner}</div></td></tr>`;
+      detail = `<tr class="detail-row"><td colspan="3"><div class="breakdown">${inner}</div></td></tr>`;
     }
     return main + detail;
   }).join('');
