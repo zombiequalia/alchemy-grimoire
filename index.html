@@ -340,6 +340,9 @@
   .held-badge{margin-left:7px;font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--gold);background:var(--panel2);border:1px solid var(--line);border-radius:4px;padding:1px 6px}
   .pot-stock{display:flex;align-items:center;gap:10px;margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--line-soft)}
   .pot-stock label{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--gold)}
+  .qty-sm button{width:20px;height:24px;font-size:13px}
+  .qty-sm input{width:34px;height:24px;font-size:12px}
+  .pot-make{margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--line-soft);font-family:'IBM Plex Mono',monospace;font-size:12px}
 
   /* order cart */
   .order-add{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
@@ -494,8 +497,8 @@
           <th class="nosort">Potion</th>
           <th class="nosort" style="width:34px">Tier</th>
           <th class="nosort">Effect</th>
-          <th class="nosort" style="width:50px">Make</th>
-          <th class="nosort" style="width:70px;text-align:right">Sell</th>
+          <th class="nosort" style="width:96px">Stock</th>
+          <th class="nosort" style="width:64px;text-align:right">Sell</th>
         </tr></thead>
         <tbody id="potBody"></tbody>
       </table>
@@ -1046,39 +1049,38 @@ function renderPotions(){
     const expanded = !!expandedPotions[key];
     const caret = `<span style="color:var(--ink-faint);font-size:10px;margin-right:4px">${expanded?'▾':'▸'}</span>`;
     const tag = (r && r.sells==='yes') ? '<span class="tag tag-sells">sells</span>' : '';
-    const held = p && p.qty ? `<span class="held-badge" title="in stock">×${p.qty}</span>` : '';
     const tier = r ? `<span class="tier tier-${r.t}">${r.t==='M'?'M':'T'+r.t}</span>` : '<span style="color:var(--ink-faint)">—</span>';
     const fx = r ? esc(r.fx) : '<span style="color:var(--ink-faint)">—</span>';
     const b = r ? canMake(r) : 0;
-    const makeTxt = r ? (b>=1 ? `<span class="can">✓${b}</span>` : `<span class="cant">—</span>`) : '<span style="color:var(--ink-faint)">—</span>';
+    const heldQty = p && p.qty ? p.qty : 0;
+    const stockStepper = `<div class="qty qty-sm">
+        <button onclick="event.stopPropagation();bumpPotion('${esc(key).replace(/'/g,"\\'")}',-1)" aria-label="minus">−</button>
+        <input type="number" min="0" value="${heldQty}" onchange="setPotionQty('${esc(key).replace(/'/g,"\\'")}',this.value)" onclick="event.stopPropagation()">
+        <button onclick="event.stopPropagation();bumpPotion('${esc(key).replace(/'/g,"\\'")}',1)" aria-label="plus">+</button>
+      </div>`;
     // sell cell — editable if there's a price entry, else a quick "+price" affordance that adds one
     let sellCell;
     if(p){
-      sellCell = `<input class="price-in" type="number" min="0" value="${p.price}" onchange="setPrice(${pIdx},this.value)" style="width:50px" onclick="event.stopPropagation()"> <span style="color:var(--gold-dim);font-size:10px">g</span>`;
+      sellCell = `<input class="price-in" type="number" min="0" value="${p.price}" onchange="setPrice(${pIdx},this.value)" style="width:46px" onclick="event.stopPropagation()"> <span style="color:var(--gold-dim);font-size:10px">g</span>`;
     } else {
       sellCell = `<span style="color:var(--ink-faint);font-size:11px">—</span>`;
     }
     const main = `<tr>
-      <td><span style="cursor:pointer;display:inline-flex;align-items:center" onclick="togglePotion('${esc(key).replace(/'/g,"\\'")}')">${caret}<span class="name">${esc(name)}</span>${tag}${held}</span></td>
+      <td><span style="cursor:pointer;display:inline-flex;align-items:center" onclick="togglePotion('${esc(key).replace(/'/g,"\\'")}')">${caret}<span class="name">${esc(name)}</span>${tag}</span></td>
       <td>${tier}</td>
       <td style="font-size:12px;color:var(--ink-dim);line-height:1.35">${fx}</td>
-      <td style="font-size:12px">${makeTxt}</td>
+      <td>${stockStepper}</td>
       <td style="text-align:right">${sellCell}</td>
     </tr>`;
 
     let detail='';
     if(expanded){
       let inner='';
-      // potion stock on hand
-      const heldQty = p && p.qty ? p.qty : 0;
-      inner += `<div class="pot-stock">
-        <label>In stock</label>
-        <div class="qty">
-          <button onclick="bumpPotion('${esc(key).replace(/'/g,"\\'")}',-1)" aria-label="minus">−</button>
-          <input type="number" min="0" value="${heldQty}" onchange="setPotionQty('${esc(key).replace(/'/g,"\\'")}',this.value)" onclick="event.stopPropagation()">
-          <button onclick="bumpPotion('${esc(key).replace(/'/g,"\\'")}',1)" aria-label="plus">+</button>
-        </div>
-      </div>`;
+      // craftable batches (moved here from main row)
+      if(r){
+        const makeBadge = b>=1 ? `<span class="can">✓ can make ${b}</span>` : `<span class="cant">short on materials</span>`;
+        inner += `<div class="pot-make">${makeBadge}</div>`;
+      }
       // ingredients with have/need
       if(r){
         const ingLines = r.ing.map(([n,c])=>{
