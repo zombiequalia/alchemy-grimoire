@@ -1013,11 +1013,19 @@ function renderIngredients(){
     return main + detail;
   }).join('');
 
-  // total weight footer
-  const grandWeight = ingredients.reduce((s,x)=>s + (x.weight!==undefined?x.weight:0.1)*x.qty, 0);
-  const gwTxt = grandWeight % 1 === 0 ? grandWeight : grandWeight.toFixed(1);
+  // weight footer — totals only the rows currently shown (respects search + filters)
+  const filtered = chips.prio || chips.low || q;
+  const shownWeight = rows.reduce((s,{r})=> s + (r.weight!==undefined?r.weight:0.1)*r.qty, 0);
+  const swTxt = shownWeight % 1 === 0 ? shownWeight : shownWeight.toFixed(1);
   const foot = document.getElementById('ingWeightFoot');
-  if(foot) foot.innerHTML = `Total ingredient weight: <strong>${gwTxt}</strong>`;
+  if(foot){
+    if(filtered){
+      const labelBit = q ? `"${esc(q)}"` : (chips.prio && chips.low ? 'priority + low stock' : chips.prio ? 'priority' : 'low stock');
+      foot.innerHTML = `Weight of ${labelBit} (${rows.length} shown): <strong>${swTxt}</strong>`;
+    } else {
+      foot.innerHTML = `Total ingredient weight: <strong>${swTxt}</strong>`;
+    }
+  }
 }
 function bump(i,d){ ingredients[i].qty=Math.max(0,ingredients[i].qty+d); save(); renderIngredients(); renderPotions(); renderOrder(); }
 function setQty(i,v){ ingredients[i].qty=Math.max(0,parseInt(v)||0); save(); renderIngredients(); renderPotions(); renderOrder(); }
