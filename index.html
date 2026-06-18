@@ -350,6 +350,9 @@
   .pot-label-edit label{font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-faint)}
   .pot-label-edit input{background:var(--bg);border:1px solid var(--line);border-radius:4px;color:var(--gold);font-family:'IBM Plex Mono',monospace;font-size:13px;padding:6px 8px;width:140px}
   .pot-label-edit input:focus{outline:none;border-color:var(--gold-dim)}
+  .pot-weight-row{display:flex;align-items:flex-end;gap:14px;margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--line-soft)}
+  .pot-weight-total{font-size:12.5px;color:var(--ink-dim)}
+  .pot-weight-total strong{color:var(--gold);font-family:'IBM Plex Mono',monospace}
 
   /* order cart */
   .order-add{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
@@ -514,7 +517,8 @@
       <input class="qn" id="newPotionPrice" type="number" min="0" placeholder="Sell" value="0">
       <button class="btn" onclick="addPotion()">+ Add</button>
     </div>
-    <p class="note"><strong>Tap a potion</strong> to expand its effect, ingredients (with what you have), cost breakdown, profit, and an editable note. <strong>Make</strong> = batches you can craft now. <strong>Sell</strong> = your player price (tap to edit). Cost &amp; profit pull from ingredient buy/labor prices. Search matches names <em>and</em> ingredients.</p>
+    <p class="weight-foot" id="potWeightFoot"></p>
+    <p class="note"><strong>Tap a potion</strong> to expand its effect, ingredients (with what you have), cost breakdown, profit, weight, and an editable note &amp; label. <strong>Sell</strong> = your player price (tap to edit). Search matches names <em>and</em> ingredients; the weight total below reflects what's shown.</p>
   </section>
 
   <!-- ORDER (commission cart with on-hand stock check) -->
@@ -1095,7 +1099,11 @@ function renderPotions(){
   if(chips.sells) rows = rows.filter(({r,p})=> (r && r.sells==='yes') || (p && p.price>0 && !r));
 
   const body=document.getElementById('potBody');
-  if(rows.length===0){ body.innerHTML='<tr><td colspan="3" class="empty">No potions match.</td></tr>'; return; }
+  if(rows.length===0){
+    body.innerHTML='<tr><td colspan="3" class="empty">No potions match.</td></tr>';
+    const foot=document.getElementById('potWeightFoot'); if(foot) foot.innerHTML='';
+    return;
+  }
 
   body.innerHTML = rows.map(({r,p,pIdx})=>{
     const name = r ? r.n : p.item;
@@ -1135,6 +1143,15 @@ function renderPotions(){
       }
       // editable glance label
       inner += `<div class="pot-label-edit"><label>Quick label (shown on row)</label><input class="edit-note" value="${esc(labelText)}" onchange="setPotionLabel('${esc(key).replace(/'/g,"\\'")}',this.value)" placeholder="e.g. 30 HP" onclick="event.stopPropagation()"></div>`;
+      // unit weight + total carried
+      const pw = (p && p.weight!==undefined) ? p.weight : 0.5;
+      const heldForW = (p && p.qty) ? p.qty : 0;
+      const totW = pw*heldForW;
+      const totWTxt = totW % 1 === 0 ? totW : totW.toFixed(1);
+      inner += `<div class="pot-weight-row">
+        <div class="ing-field sm" style="max-width:90px"><label>Unit wt</label><input class="price-in" type="number" min="0" step="0.1" value="${pw}" onchange="setPotionWeight('${esc(key).replace(/'/g,"\\'")}',this.value)" style="color:var(--ink-dim)" onclick="event.stopPropagation()"></div>
+        <span class="pot-weight-total">Carrying <strong>${totWTxt}</strong> <span style="color:var(--ink-faint)">(${pw} × ${heldForW})</span></span>
+      </div>`;
       // craftable batches
       if(r){
         const makeBadge = b>=1 ? `<span class="can">✓ can make ${b}</span>` : `<span class="cant">short on materials</span>`;
@@ -1181,6 +1198,24 @@ function renderPotions(){
     }
     return main + detail;
   }).join('');
+
+  // weight footer — totals only the rows currently shown (potions you're holding × unit weight)
+  const filtered = chips.can || chips.sells || q;
+  const shownWeight = rows.reduce((s,{p})=>{
+    const wt = (p && p.weight!==undefined) ? p.weight : 0.5;
+    const qty = (p && p.qty) ? p.qty : 0;
+    return s + wt*qty;
+  }, 0);
+  const swTxt = shownWeight % 1 === 0 ? shownWeight : shownWeight.toFixed(1);
+  const foot = document.getElementById('potWeightFoot');
+  if(foot){
+    if(filtered){
+      const labelBit = q ? `"${esc(q)}"` : (chips.can && chips.sells ? 'craftable + sellers' : chips.can ? 'craftable now' : 'sellers');
+      foot.innerHTML = `Carried weight of ${labelBit}: <strong>${swTxt}</strong>`;
+    } else {
+      foot.innerHTML = `Total potion weight carried: <strong>${swTxt}</strong>`;
+    }
+  }
 }
 function togglePotion(key){ expandedPotions[key]=!expandedPotions[key]; renderPotions(); }
 function potionEntry(name){
@@ -1190,6 +1225,7 @@ function potionEntry(name){
 }
 function setPotionQty(name,v){ const p=potionEntry(name); p.qty=Math.max(0,parseInt(v)||0); save(); renderPotions(); renderOrder(); }
 function setPotionLabel(name,v){ const p=potionEntry(name); p.label=v; save(); renderPotions(); }
+function setPotionWeight(name,v){ const p=potionEntry(name); p.weight=Math.max(0,parseFloat(v)||0); save(); renderPotions(); }
 function bumpPotion(name,d){ const p=potionEntry(name); p.qty=Math.max(0,(p.qty||0)+d); save(); renderPotions(); renderOrder(); }
 function setPrice(i,v){ prices[i].price=Math.max(0,parseInt(v)||0); save(); renderPotions(); renderOrder(); }
 function setPotionName(i,v){ prices[i].item=v.trim()||prices[i].item; save(); renderPotions(); }
