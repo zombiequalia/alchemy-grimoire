@@ -470,6 +470,7 @@
       <input class="search" id="ingSearch" placeholder="Search ingredients…" oninput="renderIngredients()">
       <button class="chip" id="filtPrio" onclick="toggleChip('prio',this)">★ Priority</button>
       <button class="chip" id="filtLow" onclick="toggleChip('low',this)">Low stock</button>
+      <button class="chip" id="filtInStock" onclick="toggleChip('instock',this)">In stock</button>
       <button class="chip" id="ingSortBtn" onclick="cycleIngSort(this)">Sort: Name</button>
     </div>
     <div class="sheet">
@@ -500,6 +501,8 @@
       <input class="search" id="potSearch" placeholder="Search potions or ingredients…" oninput="renderPotions()">
       <button class="chip" id="filtCan" onclick="toggleChip('can',this)">Can make</button>
       <button class="chip" id="filtSells" onclick="toggleChip('sells',this)">★ Sellers</button>
+      <button class="chip" id="filtPotStock" onclick="toggleChip('potstock',this)">In stock</button>
+      <button class="chip" id="potSortBtn" onclick="cyclePotSort(this)">Sort: Name</button>
     </div>
     <div class="sheet">
       <table>
@@ -770,10 +773,11 @@ let prices = [];
 let storage = [];
 let order = [];   // [{name, qty}]
 let ingSort = 0;   // 0=name,1=qty,2=source
+let potSort = 0;   // 0=name,1=weight,2=stock
 let expandedIng = {};   // ingredient name -> bool
 let expandedRec = {};   // recipe name -> bool
 let expandedPotions = {}; // item name -> bool
-let chips = {prio:false, low:false, can:false, sells:false};
+let chips = {prio:false, low:false, instock:false, can:false, sells:false, potstock:false};
 const LOW_THRESHOLD = 12;
 
 /* ---------- STORAGE (localStorage — works on any hosted page) ---------- */
@@ -967,6 +971,7 @@ function renderIngredients(){
   if(q) rows = rows.filter(({r})=> r.name.toLowerCase().includes(q) || (r.src||'').toLowerCase().includes(q) || (r.note||'').toLowerCase().includes(q));
   if(chips.prio) rows = rows.filter(({r})=>r.prio);
   if(chips.low) rows = rows.filter(({r})=>r.qty<=LOW_THRESHOLD);
+  if(chips.instock) rows = rows.filter(({r})=>r.qty>0);
 
   if(ingSort===1) rows.sort((a,b)=>a.r.qty-b.r.qty);
   else if(ingSort===2) rows.sort((a,b)=>(a.r.src||'').localeCompare(b.r.src||''));
@@ -1018,13 +1023,13 @@ function renderIngredients(){
   }).join('');
 
   // weight footer — totals only the rows currently shown (respects search + filters)
-  const filtered = chips.prio || chips.low || q;
+  const filtered = chips.prio || chips.low || chips.instock || q;
   const shownWeight = rows.reduce((s,{r})=> s + (r.weight!==undefined?r.weight:0.1)*r.qty, 0);
   const swTxt = shownWeight % 1 === 0 ? shownWeight : shownWeight.toFixed(1);
   const foot = document.getElementById('ingWeightFoot');
   if(foot){
     if(filtered){
-      const labelBit = q ? `"${esc(q)}"` : (chips.prio && chips.low ? 'priority + low stock' : chips.prio ? 'priority' : 'low stock');
+      const labelBit = q ? `"${esc(q)}"` : (chips.instock ? 'in stock' : chips.prio && chips.low ? 'priority + low stock' : chips.prio ? 'priority' : 'low stock');
       foot.innerHTML = `Weight of ${labelBit} (${rows.length} shown): <strong>${swTxt}</strong>`;
     } else {
       foot.innerHTML = `Total ingredient weight: <strong>${swTxt}</strong>`;
@@ -1060,6 +1065,12 @@ function cycleIngSort(btn){
   btn.textContent='Sort: '+['Name','Qty ↑','Source','Weight ↓'][ingSort];
   btn.classList.toggle('on', ingSort!==0);
   renderIngredients();
+}
+function cyclePotSort(btn){
+  potSort=(potSort+1)%3;
+  btn.textContent='Sort: '+['Name','Weight ↓','Stock ↓'][potSort];
+  btn.classList.toggle('on', potSort!==0);
+  renderPotions();
 }
 
 /* ---------- RECIPES RENDER ---------- */
@@ -1097,6 +1108,14 @@ function renderPotions(){
   }
   if(chips.can) rows = rows.filter(({r})=> r && canMake(r)>=1);
   if(chips.sells) rows = rows.filter(({r,p})=> (r && r.sells==='yes') || (p && p.price>0 && !r));
+  if(chips.potstock) rows = rows.filter(({p})=> p && p.qty>0);
+
+  // sort
+  const potW = p => (p && p.weight!==undefined ? p.weight : 0.5) * (p && p.qty ? p.qty : 0);
+  const potQ = p => (p && p.qty) ? p.qty : 0;
+  if(potSort===1) rows.sort((a,b)=> potW(b.p)-potW(a.p));
+  else if(potSort===2) rows.sort((a,b)=> potQ(b.p)-potQ(a.p));
+  // potSort===0 keeps the natural recipe order
 
   const body=document.getElementById('potBody');
   if(rows.length===0){
@@ -1200,7 +1219,7 @@ function renderPotions(){
   }).join('');
 
   // weight footer — totals only the rows currently shown (potions you're holding × unit weight)
-  const filtered = chips.can || chips.sells || q;
+  const filtered = chips.can || chips.sells || chips.potstock || q;
   const shownWeight = rows.reduce((s,{p})=>{
     const wt = (p && p.weight!==undefined) ? p.weight : 0.5;
     const qty = (p && p.qty) ? p.qty : 0;
@@ -1210,7 +1229,7 @@ function renderPotions(){
   const foot = document.getElementById('potWeightFoot');
   if(foot){
     if(filtered){
-      const labelBit = q ? `"${esc(q)}"` : (chips.can && chips.sells ? 'craftable + sellers' : chips.can ? 'craftable now' : 'sellers');
+      const labelBit = q ? `"${esc(q)}"` : (chips.potstock ? 'in stock' : chips.can && chips.sells ? 'craftable + sellers' : chips.can ? 'craftable now' : 'sellers');
       foot.innerHTML = `Carried weight of ${labelBit}: <strong>${swTxt}</strong>`;
     } else {
       foot.innerHTML = `Total potion weight carried: <strong>${swTxt}</strong>`;
@@ -1405,7 +1424,7 @@ function showPage(id,btn){
 function toggleChip(key,btn){
   chips[key]=!chips[key];
   btn.classList.toggle('on');
-  if(['prio','low'].includes(key)) renderIngredients();
+  if(['prio','low','instock'].includes(key)) renderIngredients();
   else renderPotions();
 }
 function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
